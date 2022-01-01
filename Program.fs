@@ -12,12 +12,17 @@ let windowSize = Vector2i (1280, 720)
 let window = 
     let config = Desktop.NativeWindowSettings ()
     config.Size <- windowSize
-    config.Title <- "PBR Engine"
-    config.NumberOfSamples <- 16
+    config.Title <- "PBR Demo"
+    config.NumberOfSamples <- 4
     new Desktop.GameWindow (Desktop.GameWindowSettings.Default, config)
 
 
-GL.ClearColor (Color4 (0uy, 0uy, 0uy, 0uy))
+GL.ClearColor (Color4 (255uy, 0uy, 0uy, 0uy))
+GL.Clear (ClearBufferMask.ColorBufferBit ||| ClearBufferMask.DepthBufferBit)
+window.Context.SwapBuffers ()
+
+
+GL.ClearColor (Color4 (0uy, 0uy, 255uy, 0uy))
 GL.Clear (ClearBufferMask.ColorBufferBit ||| ClearBufferMask.DepthBufferBit)
 window.Context.SwapBuffers ()
 
@@ -466,7 +471,7 @@ let skyboxCubemap =
 
 let lambertianCubemapIBL =
     let p = cubemapProg "precompute_ibl_lambertian_fs.glsl"
-    makeCubemap (createCubeMap 512 512) 512 512 p <|
+    makeCubemap (createCubeMap 128 128) 128 128 p <|
         fun () ->
             setUniform1i p "environmentMap" 0
             GL.ActiveTexture TextureUnit.Texture0
@@ -475,7 +480,7 @@ let lambertianCubemapIBL =
 
 let specularCubemapIBL =
     let p = cubemapProg "precompute_ibl_specular_fs.glsl"
-    let cubemap = createCubeMap 512 512
+    let cubemap = createCubeMap 128 128
     GL.BindTexture (TextureTarget.TextureCubeMap, cubemap)
     GL.TexParameter (
         TextureTarget.TextureCubeMap, 
@@ -493,8 +498,8 @@ let specularCubemapIBL =
 
     let maxMipLevels = 5
     for mip in 0..maxMipLevels - 1 do
-        let mipWidth = 512.0 * pown 0.5 mip |> int
-        let mipHeight = 512.0 * pown 0.5 mip |> int
+        let mipWidth = 128.0 * pown 0.5 mip |> int
+        let mipHeight = 128.0 * pown 0.5 mip |> int
 
         let roughness = float mip / float (maxMipLevels - 1)
 
@@ -578,13 +583,17 @@ let brdfLut =
     GL.BindFramebuffer (FramebufferTarget.Framebuffer, 0)
 
     tex
-
+   
 
 let render () =
-    GL.ClearColor (Color4 (0uy, 0uy, 0uy, 0uy))
+    GL.ClearColor (Color4 (0uy, 255uy, 0uy, 0uy))
     GL.Clear (ClearBufferMask.ColorBufferBit ||| ClearBufferMask.DepthBufferBit)
 
+    GL.Enable EnableCap.FramebufferSrgb
+
     GL.Viewport (0, 0, 1280, 720)
+
+    GL.Disable EnableCap.DepthTest
     
     GL.Enable EnableCap.Multisample
 
@@ -598,12 +607,10 @@ let render () =
         GL.ActiveTexture TextureUnit.Texture0
         GL.BindTexture (TextureTarget.TextureCubeMap, skyboxCubemap)
 
-        GL.Enable EnableCap.FramebufferSrgb
+        
 
         GL.BindVertexArray boxVAO
         GL.DrawArrays (PrimitiveType.Triangles, 0, 36)
-
-        GL.Disable EnableCap.FramebufferSrgb
 
         GL.UseProgram 0
     end
@@ -652,22 +659,19 @@ let render () =
             setUniform3f prog $"lights[{i}].WorldPosition" pos
             setUniform3f prog $"lights[{i}].Color" col)
 
-        GL.Enable EnableCap.FramebufferSrgb
-
         GL.BindVertexArray boxVAO
         GL.DrawArrays (PrimitiveType.Triangles, 0, 36)
-
-        GL.Disable EnableCap.FramebufferSrgb
 
         GL.UseProgram 0
     )
 
     GL.Disable EnableCap.DepthTest
     GL.Disable EnableCap.Multisample
+    GL.Disable EnableCap.FramebufferSrgb
 
 window.CursorGrabbed <- true
-window.add_UpdateFrame 
-    (processInput 
-     >> render 
-     >> window.Context.SwapBuffers)
+window.add_RenderFrame (fun e ->
+    processInput e
+    render ()
+    window.Context.SwapBuffers ())
 window.Run ()
